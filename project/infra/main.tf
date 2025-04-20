@@ -1,9 +1,17 @@
-resource "aws_eks_cluster" "chatbot" {
-  name     = var.cluster_name
-  role_arn = aws_iam_role.eks_cluster.arn
 
-  vpc_config {
-    subnet_ids = ["subnet-xxxxxxxx", "subnet-yyyyyyyy"]
+
+provider "aws" {
+  region = var.region
+}
+
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
   }
 }
 
@@ -20,5 +28,14 @@ resource "aws_iam_role" "eks_cluster" {
       Action = "sts:AssumeRole"
     }]
   })
+}
+
+resource "aws_eks_cluster" "chatbot" {
+  name     = var.cluster_name
+  role_arn = aws_iam_role.eks_cluster.arn
+
+  vpc_config {
+    subnet_ids = data.aws_subnets.default.ids
+  }
 }
 
