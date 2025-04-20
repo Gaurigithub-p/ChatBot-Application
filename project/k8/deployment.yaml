@@ -1,0 +1,20 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot-ui
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chatbot-ui
+  template:
+    metadata:
+      labels:
+        app: chatbot-ui
+    spec:
+      containers:
+      - name: chatbot-ui
+        image: 913524937689.dkr.ecr.ap-south-1.amazonaws.com/chatbot-ui:latest
+        ports:
+        - containerPort: 3000
