@@ -5,14 +5,14 @@ pipeline {
 
     environment {
         AWS_REGION = 'ap-south-1'
-        ECR_REPO = '<your-account-id>.dkr.ecr.ap-south-1.amazonaws.com/chatbot-ui'
+        ECR_REPO = '913524937689.dkr.ecr.ap-south-1.amazonaws.com/chatbot'
         IMAGE_TAG = 'latest'
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/<your-username>/<repo-name>.git'
+                git branch: 'main', credentialsId: 'f9be0753-932d-4f9f-b286-89574ea3d66c', url: 'https://github.com/Gaurigithub-p/ChatBot-Application.git'
             }
         }
 
