@@ -16,7 +16,7 @@ pipeline {
 
         stage('npm Build') {
             steps {
-                dir('.') {
+                dir('project') {
                     sh 'npm install'
                     sh 'npm run build'
                 }
