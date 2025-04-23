@@ -66,5 +66,21 @@ pipeline {
                 '''
             }
         }
+
+        // New stage to get the External IP (LoadBalancer URL)
+        stage('Get LoadBalancer URL') {
+            steps {
+                script {
+                    // Fetch the external IP or DNS name of the LoadBalancer
+                    def loadBalancerUrl = sh(script: "kubectl get svc chatbot-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'", returnStdout: true).trim()
+
+                    if (loadBalancerUrl) {
+                        echo "Your application is accessible at: http://${loadBalancerUrl}"
+                    } else {
+                        echo "Waiting for LoadBalancer to be provisioned..."
+                    }
+                }
+            }
+        }
     }
 }
