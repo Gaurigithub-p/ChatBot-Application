@@ -18,12 +18,13 @@ pipeline {
 
         stage('npm Build') {
     steps {
-        dir('frontend') {
+        dir('project/frontend') {
             sh 'npm install'
             sh 'npm run build'
         }
     }
 }
+
 
 
         stage('Docker Build & Push to ECR') {
