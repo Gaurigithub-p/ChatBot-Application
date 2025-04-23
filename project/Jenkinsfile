@@ -24,28 +24,28 @@ pipeline {
         }
 
         stage('Docker Build & Push to ECR') {
-    environment {
-        IMAGE_TAG = "v${BUILD_NUMBER}"  // Unique tag for each build
-    }
-    steps {
-        script {
-            withCredentials([usernamePassword(credentialsId: 'aws-ecr-creds', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                sh '''
-                    aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-                    aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-                    aws configure set default.region $AWS_REGION
+            environment {
+                IMAGE_TAG = "v${BUILD_NUMBER}"  // Unique tag for each build
+            }
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'aws-ecr-creds', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                        sh '''
+                            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                            aws configure set default.region $AWS_REGION
 
-                    aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO
+                            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO
 
-                    echo "Building Docker image with tag: $IMAGE_TAG"
-                    docker build -t $ECR_REPO:$IMAGE_TAG project/
-                    docker push $ECR_REPO:$IMAGE_TAG
-                    docker rmi $ECR_REPO:$IMAGE_TAG || true
-                '''
+                            echo "Building Docker image with tag: $IMAGE_TAG"
+                            docker build -t $ECR_REPO:$IMAGE_TAG project/
+                            docker push $ECR_REPO:$IMAGE_TAG
+                            docker rmi $ECR_REPO:$IMAGE_TAG || true
+                        '''
+                    }
+                }
             }
         }
-    }
-}
 
         stage('Terraform Apply - Create EKS Cluster') {
             steps {
@@ -61,8 +61,8 @@ pipeline {
             steps {
                 sh '''
                     aws eks --region $AWS_REGION update-kubeconfig --name chatbot-eks-cluster
-                    kubectl apply -f k8s/deployment.yaml
-                    kubectl apply -f k8s/service.yaml
+                    kubectl apply -f project/k8/deployment.yaml
+                    kubectl apply -f project/k8/service.yaml
                 '''
             }
         }
