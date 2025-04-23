@@ -1,11 +1,10 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
+// https://vitejs.dev/config/
 export default defineConfig({
-  root: '.', // This means the root of your frontend folder
-  build: {
-    outDir: 'dist', // Output directory (optional; defaults to dist)
-    rollupOptions: {
-      input: 'index.html' // Make sure index.html is here in frontend/
-    }
-  }
-})
+  plugins: [react()],
+  optimizeDeps: {
+    exclude: ['lucide-react'],
+  },
+});
