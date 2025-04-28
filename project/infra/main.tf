@@ -118,7 +118,7 @@ resource "aws_autoscaling_group" "eks_worker_asg" {
   vpc_zone_identifier  = data.aws_subnets.default.ids
   launch_configuration = aws_launch_configuration.eks_worker_launch_config.id
 
-  tags = [
+  tag = [
     {
       key                 = "kubernetes.io/cluster/${var.cluster_name}"
       value               = "owned"
