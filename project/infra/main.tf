@@ -109,12 +109,14 @@ resource "aws_launch_configuration" "eks_worker_launch_config" {
   security_groups = [aws_security_group.eks_security_group.id]
   iam_instance_profile = aws_iam_instance_profile.eks_worker_profile.name
 
-  # Tags should be moved here
-  tag {
-    key                 = "kubernetes.io/cluster/${var.cluster_name}"
-    value               = "owned"
-    propagate_at_launch = true
-  }
+  # Correcting the tag block
+  tags = [
+    {
+      key                 = "kubernetes.io/cluster/${var.cluster_name}"
+      value               = "owned"
+      propagate_at_launch = true
+    }
+  ]
 }
 
 # Auto Scaling Group for Worker Nodes
