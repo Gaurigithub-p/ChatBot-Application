@@ -1,13 +1,13 @@
-
+---
 apiVersion: v1
 kind: Service
 metadata:
   name: chatbot-ui-service
 spec:
+  type: LoadBalancer
   selector:
     app: chatbot-ui
   ports:
     - protocol: TCP
       port: 80
-      targetPort: 3000
-  type: LoadBalancer
+      targetPort: 80
