@@ -81,30 +81,34 @@ pipeline {
         stage('Deploy to EKS using Pod') {
             steps {
                 script {
+                    // Apply deployment YAML if not already done
                     sh '''
-                        # Update deployment with latest image
-                        kubectl set image deployment/chatbot-ui chatbot-ui=$ECR_REPO:$IMAGE_TAG -n default || true
-                        
-                        # Apply deployment YAML if not present
                         kubectl apply -f project/k8/deployment.yaml
-
-                        # Apply service YAML to expose application
-                        kubectl apply -f project/k8/service.yaml
                     '''
+                    
+                    // Expose app via NodePort
+                    echo "Exposing app via NodePort..."
+                    sh '''
+                        kubectl apply -f project/k8/service-nodeport.yaml
+                    '''
+                    
+                    // Optional: Wait for the pod to be ready
+                    echo "Waiting for pod to be ready..."
+                    sh 'kubectl rollout status deployment/chatbot-ui'
                 }
             }
         }
 
-        stage('Get LoadBalancer URL') {
+        stage('Get NodePort URL') {
             steps {
                 script {
-                    sh "sleep 30"  // Give time for LoadBalancer IP to come
-                    def loadBalancerUrl = sh(script: "kubectl get svc chatbot-ui-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'", returnStdout: true).trim()
+                    // Get the external IP of a NodePort service
+                    def nodePortUrl = sh(script: "kubectl get svc chatbot-ui-service --namespace=default -o jsonpath='{.spec.ports[0].nodePort}'", returnStdout: true).trim()
 
-                    if (loadBalancerUrl) {
-                        echo "🎯 Your application is accessible at: http://${loadBalancerUrl}"
+                    if (nodePortUrl) {
+                        echo "🎯 Your application is accessible at: http://<Node-External-IP>:$nodePortUrl"
                     } else {
-                        echo "⏳ Waiting for LoadBalancer to be provisioned... Check manually after few seconds."
+                        echo "⏳ Waiting for NodePort to be provisioned... Check manually after few seconds."
                     }
                 }
             }
