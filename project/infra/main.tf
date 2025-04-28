@@ -1,6 +1,3 @@
-provider "aws" {
-  region = var.region
-}
 
 # Reference to default VPC and subnets
 data "aws_vpc" "default" {
