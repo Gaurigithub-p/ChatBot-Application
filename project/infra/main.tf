@@ -121,6 +121,13 @@ resource "aws_launch_template" "eks_worker_launch_template" {
       Name = "eks-worker-node"
     }
   }
+
+  # ⭐ IMPORTANT: Bootstrap worker node to join EKS cluster
+  user_data = base64encode(<<-EOT
+    #!/bin/bash
+    /etc/eks/bootstrap.sh ${var.cluster_name}
+  EOT
+  )
 }
 
 # AutoScaling Group for Worker Nodes
