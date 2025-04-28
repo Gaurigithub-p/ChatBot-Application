@@ -1,4 +1,4 @@
-# Reference to default VPC and subnets
+# Fetch Default VPC and Subnets
 data "aws_vpc" "default" {
   default = true
 }
@@ -26,8 +26,8 @@ resource "aws_iam_role" "eks_cluster_role" {
   })
 }
 
-# Attach necessary policies to the EKS cluster IAM role
-resource "aws_iam_role_policy_attachment" "eks_cluster_role_policy" {
+# Attach EKS Cluster Policy
+resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
   role       = aws_iam_role.eks_cluster_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
@@ -48,8 +48,8 @@ resource "aws_iam_role" "eks_worker_role" {
   })
 }
 
-# Attach necessary policies to the Worker Node IAM role
-resource "aws_iam_role_policy_attachment" "eks_worker_policy" {
+# Attach Worker Node Policies
+resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
   role       = aws_iam_role.eks_worker_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
 }
@@ -57,6 +57,11 @@ resource "aws_iam_role_policy_attachment" "eks_worker_policy" {
 resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
   role       = aws_iam_role.eks_worker_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+}
+
+resource "aws_iam_role_policy_attachment" "ecr_readonly_policy" {
+  role       = aws_iam_role.eks_worker_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
 # Create the EKS Cluster
@@ -69,8 +74,8 @@ resource "aws_eks_cluster" "chatbot" {
   }
 }
 
-# Create a Security Group for EKS cluster and worker nodes
-resource "aws_security_group" "eks_security_group" {
+# Security Group for EKS Workers
+resource "aws_security_group" "eks_worker_sg" {
   vpc_id = data.aws_vpc.default.id
 
   egress {
@@ -81,6 +86,7 @@ resource "aws_security_group" "eks_security_group" {
   }
 
   ingress {
+    description = "Allow HTTPS traffic"
     cidr_blocks = ["0.0.0.0/0"]
     from_port   = 443
     to_port     = 443
@@ -88,31 +94,48 @@ resource "aws_security_group" "eks_security_group" {
   }
 
   ingress {
+    description = "Allow HTTP traffic"
     cidr_blocks = ["0.0.0.0/0"]
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
   }
+
+  ingress {
+    description = "Allow Node to Node Communication (10250)"
+    cidr_blocks = ["0.0.0.0/0"]
+    from_port   = 10250
+    to_port     = 10250
+    protocol    = "tcp"
+  }
+
+  ingress {
+    description = "Allow NodePort Range (30000-32767)"
+    cidr_blocks = ["0.0.0.0/0"]
+    from_port   = 30000
+    to_port     = 32767
+    protocol    = "tcp"
+  }
 }
 
-# Create IAM Instance Profile for Worker Nodes
+# IAM Instance Profile for Worker Nodes
 resource "aws_iam_instance_profile" "eks_worker_profile" {
   name = "eks-worker-profile"
   role = aws_iam_role.eks_worker_role.name
 }
 
-# Use Launch Template instead of Launch Configuration
+# Launch Template for Worker Nodes
 resource "aws_launch_template" "eks_worker_launch_template" {
   name_prefix   = "eks-worker-"
-  image_id      = "ami-0e35ddab05955cf57"  # Replace with your EKS optimized AMI ID
-  instance_type = "t2.micro"               # Adjust the instance type as needed
+  image_id      = "ami-0e35ddab05955cf57"  # Confirm latest AMI for your Kubernetes version
+  instance_type = "t3.small"               # Better than t2.micro for EKS (suggested)
 
   iam_instance_profile {
     name = aws_iam_instance_profile.eks_worker_profile.name
   }
 
   network_interfaces {
-    security_groups = [aws_security_group.eks_security_group.id]
+    security_groups = [aws_security_group.eks_worker_sg.id]
   }
 
   tag_specifications {
@@ -122,10 +145,10 @@ resource "aws_launch_template" "eks_worker_launch_template" {
     }
   }
 
-  # ⭐ IMPORTANT: Bootstrap worker node to join EKS cluster
+  # Worker Node Bootstrap
   user_data = base64encode(<<-EOT
     #!/bin/bash
-    /etc/eks/bootstrap.sh ${var.cluster_name}
+    /etc/eks/bootstrap.sh ${var.cluster_name} --kubelet-extra-args '--node-labels=node-role.kubernetes.io/worker=worker'
   EOT
   )
 }
@@ -136,6 +159,7 @@ resource "aws_autoscaling_group" "eks_worker_asg" {
   max_size             = 3
   min_size             = 1
   vpc_zone_identifier  = data.aws_subnets.default.ids
+  health_check_type    = "EC2"
 
   launch_template {
     id      = aws_launch_template.eks_worker_launch_template.id
