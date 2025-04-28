@@ -4,7 +4,8 @@ pipeline {
     environment {
         AWS_REGION = 'ap-south-1'
         ECR_REPO = '913524937689.dkr.ecr.ap-south-1.amazonaws.com/chatbot'
-        IMAGE_TAG = 'latest'
+        IMAGE_TAG = "v${BUILD_NUMBER}" // Unique tag for each build
+        CLUSTER_NAME = 'chatbot-eks-cluster'
     }
 
     stages {
@@ -24,9 +25,6 @@ pipeline {
         }
 
         stage('Docker Build & Push to ECR') {
-            environment {
-                IMAGE_TAG = "v${BUILD_NUMBER}"  // Unique tag for each build
-            }
             steps {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'aws-ecr-creds', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
@@ -50,34 +48,63 @@ pipeline {
         stage('Terraform Apply - Create EKS Cluster') {
             steps {
                 dir('project/infra') {
-                    sh 'terraform init'
-                    sh 'terraform plan'
-                    sh 'terraform apply -auto-approve'
+                    sh '''
+                        terraform init
+                        terraform plan
+                        terraform apply -auto-approve
+                    '''
                 }
             }
         }
 
-        stage('Deploy to EKS') {
+        stage('Connect Kubectl to EKS Cluster') {
             steps {
-                sh '''
-                    aws eks --region $AWS_REGION update-kubeconfig --name chatbot-eks-cluster
-                    kubectl apply -f project/k8/deployment.yaml
-                    kubectl apply -f project/k8/service.yaml
-                '''
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'aws-ecr-creds', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                        sh '''
+                            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                            aws configure set default.region $AWS_REGION
+
+                            echo "Updating kubeconfig..."
+                            aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+
+                            echo "Verifying cluster connection..."
+                            kubectl cluster-info
+                            kubectl get nodes
+                        '''
+                    }
+                }
             }
         }
 
-        // New stage to get the External IP (LoadBalancer URL)
+        stage('Deploy to EKS using Pod') {
+            steps {
+                script {
+                    sh '''
+                        # Update deployment with latest image
+                        kubectl set image deployment/chatbot-ui chatbot-ui=$ECR_REPO:$IMAGE_TAG -n default || true
+                        
+                        # Apply deployment YAML if not present
+                        kubectl apply -f project/k8/deployment.yaml
+
+                        # Apply service YAML to expose application
+                        kubectl apply -f project/k8/service.yaml
+                    '''
+                }
+            }
+        }
+
         stage('Get LoadBalancer URL') {
             steps {
                 script {
-                    // Fetch the external IP or DNS name of the LoadBalancer
+                    sh "sleep 30"  // Give time for LoadBalancer IP to come
                     def loadBalancerUrl = sh(script: "kubectl get svc chatbot-ui-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'", returnStdout: true).trim()
 
                     if (loadBalancerUrl) {
-                        echo "Your application is accessible at: http://${loadBalancerUrl}"
+                        echo "🎯 Your application is accessible at: http://${loadBalancerUrl}"
                     } else {
-                        echo "Waiting for LoadBalancer to be provisioned..."
+                        echo "⏳ Waiting for LoadBalancer to be provisioned... Check manually after few seconds."
                     }
                 }
             }
