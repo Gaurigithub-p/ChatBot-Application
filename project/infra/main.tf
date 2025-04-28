@@ -110,7 +110,6 @@ resource "aws_launch_configuration" "eks_worker_launch_config" {
   iam_instance_profile = aws_iam_instance_profile.eks_worker_profile.name
 }
 
-# Auto Scaling Group for Worker Nodes
 resource "aws_autoscaling_group" "eks_worker_asg" {
   desired_capacity     = 2
   max_size             = 3
@@ -118,11 +117,9 @@ resource "aws_autoscaling_group" "eks_worker_asg" {
   vpc_zone_identifier  = data.aws_subnets.default.ids
   launch_configuration = aws_launch_configuration.eks_worker_launch_config.id
 
-  tag = [
-    {
-      key                 = "kubernetes.io/cluster/${var.cluster_name}"
-      value               = "owned"
-      propagate_at_launch = true
-    }
-  ]
+  tag {
+    key                 = "kubernetes.io/cluster/${var.cluster_name}"
+    value               = "owned"
+    propagate_at_launch = true
+  }
 }
