@@ -16,7 +16,7 @@ resource "aws_iam_role" "eks_cluster_role" {
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [ {
+    Statement = [{
       Effect = "Allow",
       Principal = {
         Service = "eks.amazonaws.com"
@@ -101,21 +101,39 @@ resource "aws_iam_instance_profile" "eks_worker_profile" {
   role = aws_iam_role.eks_worker_role.name
 }
 
-# Launch Configuration for Worker Nodes
-resource "aws_launch_configuration" "eks_worker_launch_config" {
-  name_prefix   = "eks-worker"
+# Use Launch Template instead of Launch Configuration
+resource "aws_launch_template" "eks_worker_launch_template" {
+  name_prefix   = "eks-worker-"
   image_id      = "ami-0e35ddab05955cf57"  # Replace with your EKS optimized AMI ID
-  instance_type = "t2.micro"           # Adjust the instance type as needed
-  security_groups = [aws_security_group.eks_security_group.id]
-  iam_instance_profile = aws_iam_instance_profile.eks_worker_profile.name
+  instance_type = "t2.micro"               # Adjust the instance type as needed
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.eks_worker_profile.name
+  }
+
+  network_interfaces {
+    security_groups = [aws_security_group.eks_security_group.id]
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "eks-worker-node"
+    }
+  }
 }
 
+# AutoScaling Group for Worker Nodes
 resource "aws_autoscaling_group" "eks_worker_asg" {
   desired_capacity     = 2
   max_size             = 3
   min_size             = 1
   vpc_zone_identifier  = data.aws_subnets.default.ids
-  launch_configuration = aws_launch_configuration.eks_worker_launch_config.id
+
+  launch_template {
+    id      = aws_launch_template.eks_worker_launch_template.id
+    version = "$Latest"
+  }
 
   tag {
     key                 = "kubernetes.io/cluster/${var.cluster_name}"
