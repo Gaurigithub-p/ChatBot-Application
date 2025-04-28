@@ -108,15 +108,6 @@ resource "aws_launch_configuration" "eks_worker_launch_config" {
   instance_type = "t2.micro"           # Adjust the instance type as needed
   security_groups = [aws_security_group.eks_security_group.id]
   iam_instance_profile = aws_iam_instance_profile.eks_worker_profile.name
-
-  # Correcting the tag block
-  tags = [
-    {
-      key                 = "kubernetes.io/cluster/${var.cluster_name}"
-      value               = "owned"
-      propagate_at_launch = true
-    }
-  ]
 }
 
 # Auto Scaling Group for Worker Nodes
@@ -127,5 +118,11 @@ resource "aws_autoscaling_group" "eks_worker_asg" {
   vpc_zone_identifier  = data.aws_subnets.default.ids
   launch_configuration = aws_launch_configuration.eks_worker_launch_config.id
 
-  # Remove the tags here, as they are now in the launch configuration
+  tags = [
+    {
+      key                 = "kubernetes.io/cluster/${var.cluster_name}"
+      value               = "owned"
+      propagate_at_launch = true
+    }
+  ]
 }
