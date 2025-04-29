@@ -163,7 +163,7 @@ resource "aws_autoscaling_group" "eks_worker_asg" {
 
   launch_template {
     id      = aws_launch_template.eks_worker_launch_template.id
-    version = "$Latest"
+    version = aws_launch_template.eks_worker_launch_template.latest_version
   }
 
   tag {
