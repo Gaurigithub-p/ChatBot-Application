@@ -118,17 +118,17 @@ resource "aws_security_group" "eks_worker_sg" {
   }
 }
 
-# IAM Instance Profile for Worker Nodes
+# IAM Instance Profile for Worker Nodes (updated to avoid name conflict)
 resource "aws_iam_instance_profile" "eks_worker_profile" {
-  name = "eks-worker-profile"
+  name = "eks-worker-profile-${var.cluster_name}"
   role = aws_iam_role.eks_worker_role.name
 }
 
 # Launch Template for Worker Nodes
 resource "aws_launch_template" "eks_worker_launch_template" {
   name_prefix   = "eks-worker-"
-  image_id      = "ami-0e35ddab05955cf57"  # Confirm latest AMI for your Kubernetes version
-  instance_type = "t3.small"               # Better than t2.micro for EKS (suggested)
+  image_id      = "ami-0e35ddab05955cf57"  # Update with latest EKS-optimized AMI if needed
+  instance_type = "t3.small"
 
   iam_instance_profile {
     name = aws_iam_instance_profile.eks_worker_profile.name
@@ -145,7 +145,6 @@ resource "aws_launch_template" "eks_worker_launch_template" {
     }
   }
 
-  # Worker Node Bootstrap
   user_data = base64encode(<<-EOT
     #!/bin/bash
     /etc/eks/bootstrap.sh ${var.cluster_name} --kubelet-extra-args '--node-labels=node-role.kubernetes.io/worker=worker'
