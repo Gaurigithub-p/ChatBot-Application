@@ -71,6 +71,8 @@ resource "aws_eks_cluster" "chatbot" {
 
   vpc_config {
     subnet_ids = data.aws_subnets.default.ids
+    endpoint_public_access = true  # Allows public access to the EKS API server
+    endpoint_private_access = true # Allows private access to the EKS API server
   }
 }
 
@@ -118,7 +120,7 @@ resource "aws_security_group" "eks_worker_sg" {
   }
 }
 
-# IAM Instance Profile for Worker Nodes (updated to avoid name conflict)
+# IAM Instance Profile for Worker Nodes
 resource "aws_iam_instance_profile" "eks_worker_profile" {
   name = "eks-worker-profile-${var.cluster_name}"
   role = aws_iam_role.eks_worker_role.name
@@ -127,7 +129,7 @@ resource "aws_iam_instance_profile" "eks_worker_profile" {
 # Launch Template for Worker Nodes
 resource "aws_launch_template" "eks_worker_launch_template" {
   name_prefix   = "eks-worker-"
-  image_id      = "ami-0e35ddab05955cf57"  # Update with latest EKS-optimized AMI if needed
+  image_id      = "ami-0e35ddab05955cf57"  # Update with the latest EKS-optimized AMI
   instance_type = "t3.small"
 
   iam_instance_profile {
