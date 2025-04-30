@@ -17,4 +17,4 @@ spec:
         - name: chatbot-ui
           image: 913524937689.dkr.ecr.ap-south-1.amazonaws.com/chatbot-ui:latest
           ports:
-            - containerPort: 80
+            - containerPort: 3000
