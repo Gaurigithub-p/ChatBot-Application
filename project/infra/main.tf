@@ -32,14 +32,11 @@ module "vpc" {
 }
 
 module "eks" {
-  ...
-  cluster_version = "1.28"
-  ...
-}
+  source  = "terraform-aws-modules/eks/aws"
+  version = "20.8.5"
 
   cluster_name    = var.cluster_name
-  cluster_version = "1.24"
-
+  cluster_version = "1.28"  # Updated to 1.28 to avoid errors with deprecated 1.24
   cluster_endpoint_public_access = true
 
   vpc_id     = module.vpc.vpc_id
