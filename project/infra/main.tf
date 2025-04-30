@@ -70,9 +70,9 @@ resource "aws_eks_cluster" "chatbot" {
   role_arn = aws_iam_role.eks_cluster_role.arn
 
   vpc_config {
-    subnet_ids = data.aws_subnets.default.ids
-    endpoint_public_access = true  # Allows public access to the EKS API server
-    endpoint_private_access = true # Allows private access to the EKS API server
+    subnet_ids              = data.aws_subnets.default.ids
+    endpoint_public_access  = true  # Allows public access to the EKS API server
+    endpoint_private_access = true  # Allows private access to the EKS API server
   }
 }
 
@@ -154,7 +154,7 @@ resource "aws_launch_template" "eks_worker_launch_template" {
   )
 }
 
-# AutoScaling Group for Worker Nodes
+# Auto Scaling Group for Worker Nodes
 resource "aws_autoscaling_group" "eks_worker_asg" {
   desired_capacity     = 2
   max_size             = 3
