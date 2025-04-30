@@ -1,165 +1,102 @@
-data "aws_availability_zones" "azs" {}
+data "aws_iam_policy_document" "assume_role" {
+  statement {
+    effect = "Allow"
 
-data "aws_eks_cluster_auth" "cluster_auth" {
-  name = aws_eks_cluster.eks_cluster.name
-}
+    principals {
+      type        = "Service"
+      identifiers = ["eks.amazonaws.com"]
+    }
 
-resource "aws_vpc" "chatbot_vpc" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_support   = true
-  enable_dns_hostnames = true
-
-  tags = {
-    Name = "chatbot-vpc"
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    actions = ["sts:AssumeRole"]
   }
 }
 
-resource "aws_subnet" "private_subnets" {
-  count                   = length(data.aws_availability_zones.azs.names)
-  vpc_id                  = aws_vpc.chatbot_vpc.id
-  cidr_block              = element(var.private_subnets, count.index)
-  availability_zone       = element(data.aws_availability_zones.azs.names, count.index)
-  map_public_ip_on_launch = false
-
-  tags = {
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-    "kubernetes.io/role/internal-elb" = "1"
-  }
+resource "aws_iam_role" "example" {
+  name               = "eks-cluster-cloud"
+  assume_role_policy = data.aws_iam_policy_document.assume_role.json
 }
 
-resource "aws_subnet" "public_subnets" {
-  count                   = length(data.aws_availability_zones.azs.names)
-  vpc_id                  = aws_vpc.chatbot_vpc.id
-  cidr_block              = element(var.public_subnets, count.index)
-  availability_zone       = element(data.aws_availability_zones.azs.names, count.index)
-  map_public_ip_on_launch = true
-
-  tags = {
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-    "kubernetes.io/role/elb" = "1"
-  }
-}
-
-resource "aws_nat_gateway" "nat_gateway" {
-  allocation_id = aws_eip.nat_eip.id
-  subnet_id     = aws_subnet.public_subnets[0].id
-}
-
-resource "aws_eip" "nat_eip" {
-  # vpc = true ← Removed this line as it's deprecated
-}
-
-resource "aws_security_group" "eks_security_group" {
-  name        = "eks-cluster-sg"
-  description = "EKS Cluster security group"
-  vpc_id      = aws_vpc.chatbot_vpc.id
-}
-
-resource "aws_iam_role" "eks_role" {
-  name = "eks-cluster-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "eks.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Name = "eks-cluster-role"
-  }
-}
-
-resource "aws_iam_role_policy_attachment" "eks_role_policy_attachment" {
-  role       = aws_iam_role.eks_role.name
+resource "aws_iam_role_policy_attachment" "example-AmazonEKSClusterPolicy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+  role       = aws_iam_role.example.name
 }
 
-resource "aws_eks_cluster" "eks_cluster" {
-  name     = var.cluster_name
-  role_arn = aws_iam_role.eks_role.arn
-  version  = "1.28"
+#get vpc data
+data "aws_vpc" "default" {
+  default = true
+}
+#get public subnets for cluster
+data "aws_subnets" "public" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+#cluster provision
+resource "aws_eks_cluster" "example" {
+  name     = "EKS_CLOUD"
+  role_arn = aws_iam_role.example.arn
 
   vpc_config {
-    subnet_ids         = aws_subnet.private_subnets[*].id
-    security_group_ids = [aws_security_group.eks_security_group.id]
+    subnet_ids = data.aws_subnets.public.ids
   }
 
-  tags = {
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-  }
+  # Ensure that IAM Role permissions are created before and deleted after EKS Cluster handling.
+  # Otherwise, EKS will not be able to properly delete EKS managed EC2 infrastructure such as Security Groups.
+  depends_on = [
+    aws_iam_role_policy_attachment.example-AmazonEKSClusterPolicy,
+  ]
 }
 
-resource "aws_iam_role" "eks_node_role" {
-  name = "eks-node-role"
+resource "aws_iam_role" "example1" {
+  name = "eks-node-group-cloud"
 
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
       }
-    ]
+    }]
+    Version = "2012-10-17"
   })
-
-  tags = {
-    Name = "eks-node-role"
-  }
 }
 
-resource "aws_iam_role_policy_attachment" "eks_node_role_policy_attachment" {
-  role       = aws_iam_role.eks_node_role.name
+resource "aws_iam_role_policy_attachment" "example-AmazonEKSWorkerNodePolicy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+  role       = aws_iam_role.example1.name
 }
 
-resource "aws_eks_node_group" "eks_node_group" {
-  cluster_name    = aws_eks_cluster.eks_cluster.name
-  node_group_name = "default-node-group"
-  node_role_arn   = aws_iam_role.eks_node_role.arn
-  subnet_ids      = aws_subnet.private_subnets[*].id
-  instance_types  = ["t2.micro"]
+resource "aws_iam_role_policy_attachment" "example-AmazonEKS_CNI_Policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+  role       = aws_iam_role.example1.name
+}
+
+resource "aws_iam_role_policy_attachment" "example-AmazonEC2ContainerRegistryReadOnly" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  role       = aws_iam_role.example1.name
+}
+
+#create node group
+resource "aws_eks_node_group" "example" {
+  cluster_name    = aws_eks_cluster.example.name
+  node_group_name = "Node-cloud"
+  node_role_arn   = aws_iam_role.example1.arn
+  subnet_ids      = data.aws_subnets.public.ids
 
   scaling_config {
-    desired_size = 2
-    max_size     = 3
+    desired_size = 1
+    max_size     = 2
     min_size     = 1
   }
+  instance_types = ["t2.medium"]
 
-  tags = {
-    Name = "chatbot-node"
-  }
-}
-
-resource "kubernetes_config_map" "aws_auth" {
-  depends_on = [aws_eks_node_group.eks_node_group]
-
-  metadata {
-    name      = "aws-auth"
-    namespace = "kube-system"
-  }
-
-  data = {
-    mapRoles = yamlencode([{
-      rolearn  = aws_iam_role.eks_node_role.arn
-      username = "system:node:{{EC2PrivateDNSName}}"
-      groups   = ["system:bootstrappers", "system:nodes"]
-    }])
-
-    mapUsers = yamlencode([{
-      userarn  = "arn:aws:iam::913524937689:user/your-iam-user"
-      username = "jenkins"
-      groups   = ["system:masters"]
-    }])
-  }
+  # Ensure that IAM Role permissions are created before and deleted after EKS Node Group handling.
+  # Otherwise, EKS will not be able to properly delete EC2 Instances and Elastic Network Interfaces.
+  depends_on = [
+    aws_iam_role_policy_attachment.example-AmazonEKSWorkerNodePolicy,
+    aws_iam_role_policy_attachment.example-AmazonEKS_CNI_Policy,
+    aws_iam_role_policy_attachment.example-AmazonEC2ContainerRegistryReadOnly,
+  ]
 }
