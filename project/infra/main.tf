@@ -8,7 +8,6 @@ provider "kubernetes" {
   host                   = aws_eks_cluster.eks_cluster.endpoint
   cluster_ca_certificate = base64decode(aws_eks_cluster.eks_cluster.certificate_authority[0].data)
   token                  = data.aws_eks_cluster_auth.cluster_auth.token
-  load_config_file       = false
 }
 
 resource "aws_vpc" "chatbot_vpc" {
@@ -54,7 +53,7 @@ resource "aws_nat_gateway" "nat_gateway" {
 }
 
 resource "aws_eip" "nat_eip" {
-  vpc = true
+  # vpc = true ← Removed this line as it's deprecated
 }
 
 resource "aws_security_group" "eks_security_group" {
@@ -157,20 +156,16 @@ resource "kubernetes_config_map" "aws_auth" {
   }
 
   data = {
-    mapRoles = yamlencode([
-      {
-        rolearn  = aws_iam_role.eks_node_role.arn
-        username = "system:node:{{EC2PrivateDNSName}}"
-        groups   = ["system:bootstrappers", "system:nodes"]
-      }
-    ])
+    mapRoles = yamlencode([{
+      rolearn  = aws_iam_role.eks_node_role.arn
+      username = "system:node:{{EC2PrivateDNSName}}"
+      groups   = ["system:bootstrappers", "system:nodes"]
+    }])
 
-    mapUsers = yamlencode([
-      {
-        userarn  = "arn:aws:iam::913524937689:user/your-iam-user"
-        username = "jenkins"
-        groups   = ["system:masters"]
-      }
-    ])
+    mapUsers = yamlencode([{
+      userarn  = "arn:aws:iam::913524937689:user/your-iam-user"
+      username = "jenkins"
+      groups   = ["system:masters"]
+    }])
   }
 }
