@@ -1,7 +1,3 @@
-provider "aws" {
-  region = "ap-south-1"
-}
-
 # IAM role for EKS control plane
 data "aws_iam_policy_document" "assume_role" {
   statement {
