@@ -1,63 +1,143 @@
 data "aws_availability_zones" "azs" {}
 
-module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "5.1.1"
-
-  name = "chatbot-vpc"
-  cidr = var.vpc_cidr
-
-  azs             = data.aws_availability_zones.azs.names
-  private_subnets = var.private_subnets
-  public_subnets  = var.public_subnets
-
+resource "aws_vpc" "chatbot_vpc" {
+  cidr_block = var.vpc_cidr
+  enable_dns_support = true
   enable_dns_hostnames = true
-  enable_dns_support   = true
-  enable_nat_gateway   = true
-  single_nat_gateway   = true
 
   tags = {
+    Name = "chatbot-vpc"
     "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-  }
-
-  public_subnet_tags = {
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-    "kubernetes.io/role/elb"                   = "1"
-  }
-
-  private_subnet_tags = {
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-    "kubernetes.io/role/internal-elb"          = "1"
   }
 }
 
-module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
-  version = "20.8.5"
+resource "aws_subnet" "private_subnets" {
+  count = length(data.aws_availability_zones.azs.names)
 
-  cluster_name    = var.cluster_name
-  cluster_version = "1.28"  # Updated to 1.28 to avoid errors with deprecated 1.24
-  cluster_endpoint_public_access = true
+  vpc_id = aws_vpc.chatbot_vpc.id
+  cidr_block = element(var.private_subnets, count.index)
+  availability_zone = element(data.aws_availability_zones.azs.names, count.index)
+  map_public_ip_on_launch = false
 
-  vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.private_subnets
+  tags = {
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "kubernetes.io/role/internal-elb" = "1"
+  }
+}
 
-  eks_managed_node_groups = {
-    default_node_group = {
-      desired_size = 2
-      min_size     = 1
-      max_size     = 3
+resource "aws_subnet" "public_subnets" {
+  count = length(data.aws_availability_zones.azs.names)
 
-      instance_types = ["t3.small"]
+  vpc_id = aws_vpc.chatbot_vpc.id
+  cidr_block = element(var.public_subnets, count.index)
+  availability_zone = element(data.aws_availability_zones.azs.names, count.index)
+  map_public_ip_on_launch = true
 
-      tags = {
-        Name = "chatbot-node"
-      }
-    }
+  tags = {
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "kubernetes.io/role/elb" = "1"
+  }
+}
+
+resource "aws_nat_gateway" "nat_gateway" {
+  allocation_id = aws_eip.nat_eip.id
+  subnet_id = aws_subnet.public_subnets[0].id
+}
+
+resource "aws_eip" "nat_eip" {
+  vpc = true
+}
+
+resource "aws_security_group" "eks_security_group" {
+  name        = "eks-cluster-sg"
+  description = "EKS Cluster security group"
+  vpc_id      = aws_vpc.chatbot_vpc.id
+}
+
+resource "aws_eks_cluster" "eks_cluster" {
+  name     = var.cluster_name
+  role_arn = aws_iam_role.eks_role.arn
+  version  = "1.28"  # Updated Kubernetes version to 1.28
+
+  vpc_config {
+    subnet_ids = aws_subnet.private_subnets[*].id
+    security_group_ids = [aws_security_group.eks_security_group.id]
   }
 
   tags = {
-    Environment = "dev"
-    Terraform   = "true"
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
   }
+}
+
+resource "aws_iam_role" "eks_role" {
+  name = "eks-cluster-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "eks.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    "Name" = "eks-cluster-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "eks_role_policy_attachment" {
+  role       = aws_iam_role.eks_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+}
+
+resource "aws_eks_node_group" "eks_node_group" {
+  cluster_name    = aws_eks_cluster.eks_cluster.name
+  node_group_name = "default-node-group"
+  node_role_arn   = aws_iam_role.eks_node_role.arn
+  subnet_ids      = aws_subnet.private_subnets[*].id
+  instance_types  = ["t3.small"]
+  desired_size    = 2
+  min_size        = 1
+  max_size        = 3
+
+  scaling_config {
+    desired_size = 2
+    max_size     = 3
+    min_size     = 1
+  }
+
+  tags = {
+    "Name" = "chatbot-node"
+  }
+}
+
+resource "aws_iam_role" "eks_node_role" {
+  name = "eks-node-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    "Name" = "eks-node-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "eks_node_role_policy_attachment" {
+  role       = aws_iam_role.eks_node_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
 }
