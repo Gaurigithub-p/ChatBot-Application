@@ -1,7 +1,7 @@
 output "cluster_name" {
-  value = aws_eks_cluster.chatbot.name
+  value = module.eks.cluster_name
 }
 
-output "cluster_endpoint" {
-  value = aws_eks_cluster.chatbot.endpoint
+output "kubeconfig" {
+  value = module.eks.kubeconfig
 }
