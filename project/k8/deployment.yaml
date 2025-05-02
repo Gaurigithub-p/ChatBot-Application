@@ -1,21 +1,20 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: reddit-clone-deployment
-  labels:
-    app: reddit-clone
+  name: chatbot
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
-      app: reddit-clone
+      app: chatbot
   template:
     metadata:
       labels:
-        app: reddit-clone
+        app: chatbot
     spec:
       containers:
-      - name: reddit-clone
+      - name: chatbot
         image: gauridocker777/devops:latest
         ports:
         - containerPort: 80
