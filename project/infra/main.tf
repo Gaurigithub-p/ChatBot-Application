@@ -29,10 +29,10 @@ data "aws_vpc" "default" {
   default = true
 }
 
-# Define the Subnet IDs manually (subnet-0ac763d5f6041e217 and subnet-00684cbdb531f4720)
+# Define Subnet 1 with a new CIDR block that avoids conflicts
 resource "aws_subnet" "subnet_1" {
   vpc_id                  = data.aws_vpc.default.id
-  cidr_block              = "172.31.0.0/20"
+  cidr_block              = "172.31.32.0/20"  # Updated CIDR block to avoid overlap
   availability_zone       = "ap-south-1a"
   map_public_ip_on_launch = true
   tags = {
@@ -40,9 +40,10 @@ resource "aws_subnet" "subnet_1" {
   }
 }
 
+# Define Subnet 2 with existing CIDR block
 resource "aws_subnet" "subnet_2" {
   vpc_id                  = data.aws_vpc.default.id
-  cidr_block              = "172.31.16.0/24"
+  cidr_block              = "172.31.16.0/24"  # Existing CIDR block
   availability_zone       = "ap-south-1b"
   map_public_ip_on_launch = true
   tags = {
