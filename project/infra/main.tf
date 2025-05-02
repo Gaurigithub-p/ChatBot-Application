@@ -3,12 +3,14 @@ data "aws_vpc" "default" {
   default = true
 }
 
-# Data source to get public subnets in the VPC
+# Data source to get public subnets in at least two different AZs
 data "aws_subnets" "public" {
   filter {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
   }
+
+  # Optionally, you can add filters here if you want to pick specific subnets based on tags, etc.
 }
 
 # Create the IAM Role for the Node Group
@@ -52,7 +54,7 @@ resource "aws_eks_cluster" "example" {
   role_arn = aws_iam_role.example1.arn
 
   vpc_config {
-    subnet_ids = data.aws_subnets.public.ids
+    subnet_ids = slice(data.aws_subnets.public.ids, 0, 2)  # Ensure at least two subnets from different AZs
   }
 
   depends_on = [
@@ -71,7 +73,7 @@ resource "aws_eks_node_group" "example" {
   cluster_name    = aws_eks_cluster.example.name
   node_group_name = "Node-cloud"
   node_role_arn   = aws_iam_role.example1.arn
-  subnet_ids      = data.aws_subnets.public.ids
+  subnet_ids      = slice(data.aws_subnets.public.ids, 0, 2)  # Ensure at least two subnets
 
   scaling_config {
     desired_size = 1
