@@ -37,7 +37,7 @@ data "aws_subnets" "public" {
   }
 }
 
-# Create the EKS Cluster
+# Ensure there are at least two subnets in different Availability Zones
 resource "aws_eks_cluster" "example" {
   name     = "EKS_CLOUD"
   role_arn = aws_iam_role.example.arn
