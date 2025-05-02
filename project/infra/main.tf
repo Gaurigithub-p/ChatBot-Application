@@ -1,4 +1,17 @@
-# IAM Role for Node Group
+# Data source to get VPC (ensure you have the correct VPC ID or use default)
+data "aws_vpc" "default" {
+  default = true
+}
+
+# Data source to get public subnets in the VPC
+data "aws_subnets" "public" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
+# Create the IAM Role for the Node Group
 resource "aws_iam_role" "example1" {
   name = "eks-node-group-cloud"
 
@@ -14,7 +27,7 @@ resource "aws_iam_role" "example1" {
   })
 }
 
-# IAM Role Policy Attachments (only after role is created)
+# IAM Role Policy Attachments for Node Group Role
 resource "aws_iam_role_policy_attachment" "example-AmazonEKSWorkerNodePolicy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
   role       = aws_iam_role.example1.name
@@ -33,7 +46,27 @@ resource "aws_iam_role_policy_attachment" "example-AmazonEC2ContainerRegistryRea
   depends_on = [aws_iam_role.example1]
 }
 
-# Create node group with explicit dependencies
+# Create the EKS Cluster
+resource "aws_eks_cluster" "example" {
+  name     = "EKS-Cluster"
+  role_arn = aws_iam_role.example1.arn
+
+  vpc_config {
+    subnet_ids = data.aws_subnets.public.ids
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.example-AmazonEKSClusterPolicy,
+  ]
+}
+
+# IAM Role Policy Attachment for EKS Cluster
+resource "aws_iam_role_policy_attachment" "example-AmazonEKSClusterPolicy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+  role       = aws_iam_role.example1.name
+}
+
+# Create the EKS Node Group
 resource "aws_eks_node_group" "example" {
   cluster_name    = aws_eks_cluster.example.name
   node_group_name = "Node-cloud"
