@@ -15,9 +15,9 @@ spec:
     spec:
       containers:
       - name: chatbot
-        image: vijaygiduthuri/chatbot:latest
+        image: gauridocker777/devops:latest
         ports:
-        - containerPort: 3000   # Use port 3000
+        - containerPort: 80   # Use port 3000
 
 ---
 apiVersion: v1
