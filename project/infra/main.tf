@@ -29,11 +29,24 @@ data "aws_vpc" "default" {
   default = true
 }
 
-# Get Public Subnets for the Cluster
-data "aws_subnets" "public" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
+# Define the Subnet IDs manually (subnet-0ac763d5f6041e217 and subnet-00684cbdb531f4720)
+resource "aws_subnet" "subnet_1" {
+  vpc_id                  = data.aws_vpc.default.id
+  cidr_block              = "172.31.0.0/20"
+  availability_zone       = "ap-south-1a"
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "my-subnet-1"
+  }
+}
+
+resource "aws_subnet" "subnet_2" {
+  vpc_id                  = data.aws_vpc.default.id
+  cidr_block              = "172.31.16.0/24"
+  availability_zone       = "ap-south-1b"
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "my-subnet-2"
   }
 }
 
@@ -43,7 +56,10 @@ resource "aws_eks_cluster" "example" {
   role_arn = aws_iam_role.example.arn
 
   vpc_config {
-    subnet_ids = length(data.aws_subnets.public.ids) >= 2 ? slice(data.aws_subnets.public.ids, 0, 2) : data.aws_subnets.public.ids
+    subnet_ids = [
+      aws_subnet.subnet_1.id,
+      aws_subnet.subnet_2.id
+    ]
   }
 
   depends_on = [
@@ -88,7 +104,10 @@ resource "aws_eks_node_group" "example" {
   cluster_name    = aws_eks_cluster.example.name
   node_group_name = "Node-cloud"
   node_role_arn   = aws_iam_role.example1.arn
-  subnet_ids      = length(data.aws_subnets.public.ids) >= 2 ? slice(data.aws_subnets.public.ids, 0, 2) : data.aws_subnets.public.ids
+  subnet_ids      = [
+    aws_subnet.subnet_1.id,
+    aws_subnet.subnet_2.id
+  ]
 
   scaling_config {
     desired_size = 1
