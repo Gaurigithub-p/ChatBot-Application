@@ -15,6 +15,6 @@ spec:
     spec:
       containers:
         - name: chatbot-ui
-          image: 913524937689.dkr.ecr.ap-south-1.amazonaws.com/chatbot-ui:latest
+          image: gauridocker777/devops:latest
           ports:
-            - containerPort: 3000
+            - containerPort: 80
