@@ -1,19 +1,19 @@
-# Data source to get VPC (ensure you have the correct VPC ID or use default)
+# Data source to get the VPC details
 data "aws_vpc" "default" {
   default = true
 }
 
-# Data source to get public subnets in at least two different AZs
+# Data source to get the public subnets in the default VPC
 data "aws_subnets" "public" {
   filter {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
   }
 
-  # Optionally, you can add filters here if you want to pick specific subnets based on tags, etc.
+  # Optionally, you can add filters to restrict the subnets to specific tags, etc.
 }
 
-# Create the IAM Role for the Node Group
+# IAM Role for Node Group
 resource "aws_iam_role" "example1" {
   name = "eks-node-group-cloud"
 
@@ -29,7 +29,7 @@ resource "aws_iam_role" "example1" {
   })
 }
 
-# IAM Role Policy Attachments for Node Group Role
+# IAM Role Policy Attachments
 resource "aws_iam_role_policy_attachment" "example-AmazonEKSWorkerNodePolicy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
   role       = aws_iam_role.example1.name
@@ -48,13 +48,14 @@ resource "aws_iam_role_policy_attachment" "example-AmazonEC2ContainerRegistryRea
   depends_on = [aws_iam_role.example1]
 }
 
-# Create the EKS Cluster
+# Create EKS Cluster
 resource "aws_eks_cluster" "example" {
   name     = "EKS-Cluster"
   role_arn = aws_iam_role.example1.arn
 
   vpc_config {
-    subnet_ids = slice(data.aws_subnets.public.ids, 0, 2)  # Ensure at least two subnets from different AZs
+    # Ensure at least two subnets are provided, fallback to 1 if there are fewer than two
+    subnet_ids = length(data.aws_subnets.public.ids) >= 2 ? slice(data.aws_subnets.public.ids, 0, 2) : data.aws_subnets.public.ids
   }
 
   depends_on = [
@@ -62,24 +63,21 @@ resource "aws_eks_cluster" "example" {
   ]
 }
 
-# IAM Role Policy Attachment for EKS Cluster
-resource "aws_iam_role_policy_attachment" "example-AmazonEKSClusterPolicy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role       = aws_iam_role.example1.name
-}
-
-# Create the EKS Node Group
+# Create EKS Node Group
 resource "aws_eks_node_group" "example" {
   cluster_name    = aws_eks_cluster.example.name
   node_group_name = "Node-cloud"
   node_role_arn   = aws_iam_role.example1.arn
-  subnet_ids      = slice(data.aws_subnets.public.ids, 0, 2)  # Ensure at least two subnets
+
+  # Ensure at least two subnets are provided for node group, fallback to 1 if there are fewer than two
+  subnet_ids      = length(data.aws_subnets.public.ids) >= 2 ? slice(data.aws_subnets.public.ids, 0, 2) : data.aws_subnets.public.ids
 
   scaling_config {
     desired_size = 1
     max_size     = 2
     min_size     = 1
   }
+
   instance_types = ["t2.medium"]
 
   depends_on = [
