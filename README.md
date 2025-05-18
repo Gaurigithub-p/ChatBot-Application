@@ -211,12 +211,17 @@ aws eks update-kubeconfig --name <cluster-name> --region ap-south-1
 
 ```groovy
 stage('Deploy to Kubernetes') {
-    steps {
-        script {
-            withKubeConfig(credentialsId: 'k8') {
-                sh 'kubectl apply -f deployment.yml'
-                sh 'kubectl apply -f service.yml'
-                sh 'kubectl apply -f ingress.yml'
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'aws_cred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    script {
+                         sh '''
+                            export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+                            export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+                            aws eks --region ap-south-1 update-kubeconfig --name EKS_CLOUD
+                            kubectl apply -f project/k8/deployment.yaml --validate=false
+                        '''
+                    }
+                }
             }
         }
     }
